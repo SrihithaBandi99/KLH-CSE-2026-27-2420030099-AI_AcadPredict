@@ -1,256 +1,298 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StudentLayout from '../../components/layout/StudentLayout';
+import { projectsApi, teamApi } from '../../services/api';
 import './MyTeam.css';
 
 /**
  * MyTeam Component
  * Route: /student/team
+ * Displays real team members and allows adding/removing team members via backend API.
  */
 function MyTeam() {
-  const [teamInfo, setTeamInfo] = useState({
-    name: 'Team NeuralEdge',
-    code: 'NE-2026-X8',
-    project: 'AcadPredict: Academic Project Collaboration & Risk Prediction Platform',
-    status: 'Confirmed (4/4 Members)',
-    formationDate: 'Aug 28, 2026',
-  });
-
-  const [members, setMembers] = useState([
-    {
-      id: 'm-1',
-      name: 'Student User',
-      email: 'student@college.edu',
-      rollNo: '2023CSB1042',
-      role: 'Team Leader & Frontend Lead',
-      isLeader: true,
-      isSelf: true,
-      skills: ['React.js', 'UI/UX Design', 'Vite', 'Client Routing'],
-      status: 'Active',
-    },
-    {
-      id: 'm-2',
-      name: 'Alex Rivera',
-      email: 'alex.rivera@college.edu',
-      rollNo: '2023CSB1015',
-      role: 'Machine Learning Engineer',
-      isLeader: false,
-      isSelf: false,
-      skills: ['Python', 'Scikit-Learn', 'Risk Modeling', 'Pandas'],
-      status: 'Active',
-    },
-    {
-      id: 'm-3',
-      name: 'Priya Sharma',
-      email: 'priya.sharma@college.edu',
-      rollNo: '2023CSB1089',
-      role: 'Backend API Developer',
-      isLeader: false,
-      isSelf: false,
-      skills: ['Spring Boot', 'REST APIs', 'JWT Auth', 'PostgreSQL'],
-      status: 'Active',
-    },
-    {
-      id: 'm-4',
-      name: 'David Chen',
-      email: 'david.chen@college.edu',
-      rollNo: '2023CSB1033',
-      role: 'Database & QA Engineer',
-      isLeader: false,
-      isSelf: false,
-      skills: ['SQL', 'Unit Testing', 'Docker', 'Documentation'],
-      status: 'Active',
-    },
-  ]);
-
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showJoinModal, setShowJoinModal] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: '' });
-  const [joinCode, setJoinCode] = useState('');
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [error, setError] = useState(null);
+  const [modalError, setModalError] = useState(null);
   const [notification, setNotification] = useState(null);
 
-  const handleInviteSubmit = (e) => {
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: '' });
+
+  // Load all projects owned by student
+  useEffect(() => {
+    let mounted = true;
+    async function loadProjects() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const list = await projectsApi.getAll();
+        if (mounted) {
+          const valid = Array.isArray(list) ? list : [];
+          setProjects(valid);
+          if (valid.length > 0) {
+            setSelectedProjectId(valid[0].id);
+          }
+        }
+      } catch (err) {
+        if (mounted) setError(err.message || 'Failed to load projects.');
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    }
+    loadProjects();
+    return () => { mounted = false; };
+  }, []);
+
+  // Fetch real team members whenever selected project changes
+  const fetchTeamMembers = useCallback(async (projectId) => {
+    if (!projectId) {
+      setMembers([]);
+      return;
+    }
+    setIsLoadingMembers(true);
+    setError(null);
+    try {
+      const data = await teamApi.getByProject(projectId);
+      setMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load team members.');
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedProjectId) {
+        fetchTeamMembers(selectedProjectId);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedProjectId, fetchTeamMembers]);
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId) || null;
+
+  const handleInviteSubmit = async (e) => {
     e.preventDefault();
+    if (!selectedProjectId) return;
     if (!inviteForm.name.trim() || !inviteForm.email.trim()) {
-      alert('Please enter both student name and email.');
+      setModalError('Please enter both student name and valid email.');
       return;
     }
 
-    const newMember = {
-      id: `m-${Date.now()}`,
-      name: inviteForm.name,
-      email: inviteForm.email,
-      rollNo: '2023CSB' + Math.floor(1000 + Math.random() * 900),
-      role: inviteForm.role || 'Team Member',
-      isLeader: false,
-      isSelf: false,
-      skills: ['Engineering', 'Collaboration'],
-      status: 'Invitation Pending',
-    };
+    setIsSubmitting(true);
+    setModalError(null);
+    try {
+      const added = await teamApi.addMember(selectedProjectId, {
+        name: inviteForm.name.trim(),
+        email: inviteForm.email.trim(),
+        role: inviteForm.role ? inviteForm.role.trim() : 'Team Member',
+      });
 
-    setMembers([...members, newMember]);
-    setShowInviteModal(false);
-    setInviteForm({ name: '', email: '', role: '' });
-    setNotification(`Invitation successfully sent to ${inviteForm.name}!`);
-    setTimeout(() => setNotification(null), 4000);
-  };
-
-  const handleJoinSubmit = (e) => {
-    e.preventDefault();
-    if (!joinCode.trim()) {
-      alert('Please enter a valid Team Code.');
-      return;
+      setShowInviteModal(false);
+      setInviteForm({ name: '', email: '', role: '' });
+      setNotification(`"${added.name}" has been successfully added to the project team.`);
+      setTimeout(() => setNotification(null), 4000);
+      fetchTeamMembers(selectedProjectId);
+    } catch (err) {
+      setModalError(err.message || 'Failed to add team member.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowJoinModal(false);
-    setNotification(`Request to join team with code "${joinCode}" submitted to coordinator.`);
-    setJoinCode('');
-    setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleRemoveMember = (memberId, memberName) => {
+  const handleRemoveMember = async (memberId, memberName) => {
+    if (!selectedProjectId) return;
     const confirmRemove = window.confirm(
       `Are you sure you want to remove ${memberName} from the project team?`
     );
-    if (confirmRemove) {
-      setMembers(members.filter((m) => m.id !== memberId));
+    if (!confirmRemove) return;
+
+    try {
+      await teamApi.removeMember(selectedProjectId, memberId);
       setNotification(`${memberName} has been removed from the team.`);
       setTimeout(() => setNotification(null), 4000);
+      fetchTeamMembers(selectedProjectId);
+    } catch (err) {
+      alert(err.message || 'Failed to remove team member.');
     }
   };
 
   return (
     <StudentLayout pageTitle="My Team">
       <div className="team-page">
-        {/* Page Top Header */}
+        {/* Header Row */}
         <div className="team-header-row">
           <div>
-            <h1 className="team-heading">My Team</h1>
+            <h1 className="team-heading">Project Team &amp; Collaboration</h1>
             <p className="team-subheading">
-              Collaborate with project teammates, manage roles, and review contribution allocations.
+              Manage team members, assign module responsibilities, and monitor peer collaboration.
             </p>
           </div>
 
-          <div className="team-actions-group">
-            <button
-              type="button"
-              className="btn-join-team"
-              onClick={() => setShowJoinModal(true)}
-            >
-              Join Another Team
-            </button>
-            <button
-              type="button"
-              className="btn-invite-member"
-              onClick={() => setShowInviteModal(true)}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="btn-icon">
-                <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-              </svg>
-              <span>Invite Member</span>
-            </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {projects.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Project:</label>
+                <select
+                  value={selectedProjectId || ''}
+                  onChange={(e) => setSelectedProjectId(Number(e.target.value))}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff',
+                    maxWidth: '280px',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    outline: 'none',
+                  }}
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectName} (#{p.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {selectedProjectId && (
+              <button
+                type="button"
+                className="btn-invite-member"
+                onClick={() => {
+                  setModalError(null);
+                  setShowInviteModal(true);
+                }}
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="btn-icon">
+                  <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                </svg>
+                <span>Add Team Member</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Alert Notification */}
+        {/* Notifications */}
         {notification && (
-          <div className="alert-banner alert-success">
+          <div className="alert-banner alert-success" style={{ background: '#DEF7EC', color: '#03543F', border: '1px solid #31C48D', padding: '12px 16px', borderRadius: '8px' }}>
             <span>✓ {notification}</span>
           </div>
         )}
 
+        {/* Error Alert */}
+        {error && (
+          <div className="alert-banner alert-error" style={{ background: '#FEE2E2', color: '#991B1B', border: '1px solid #F87171', padding: '12px 16px', borderRadius: '8px' }}>
+            <span>⚠️ {error}</span>
+          </div>
+        )}
+
+        {/* Empty State: No Projects */}
+        {!isLoading && projects.length === 0 && (
+          <div className="card" style={{ padding: '48px 20px', textAlign: 'center', background: '#FFFFFF', borderRadius: '12px', border: '1px dashed #D1D5DB' }}>
+            <h3 style={{ fontSize: '18px', color: '#111827', marginBottom: '8px' }}>No Active Project Found</h3>
+            <p style={{ color: '#6B7280', marginBottom: '20px', fontSize: '14px', maxWidth: '480px', margin: '0 auto 20px auto' }}>
+              Team membership is associated with academic projects. Please create a project first before adding team collaborators.
+            </p>
+            <button
+              type="button"
+              className="btn-create-project"
+              onClick={() => navigate('/student/projects')}
+            >
+              Create Academic Project &rarr;
+            </button>
+          </div>
+        )}
+
         {/* Team Overview Card */}
-        <div className="card team-meta-card">
-          <div className="team-meta-header">
-            <div>
-              <span className="team-code-tag">Code: {teamInfo.code}</span>
-              <h2 className="team-display-name">{teamInfo.name}</h2>
-              <p className="team-project-ref">Project: {teamInfo.project}</p>
-            </div>
-            <div className="team-status-box">
-              <span className="team-status-label">Team Status</span>
-              <span className="status-pill status-completed">{teamInfo.status}</span>
+        {selectedProject && (
+          <div className="card team-meta-card">
+            <div className="team-meta-header">
+              <div>
+                <span className="team-code-tag">Project #{selectedProject.id}</span>
+                <h2 className="team-display-name">{selectedProject.projectName}</h2>
+                <p className="team-project-title">Domain: {selectedProject.projectType || 'Academic Project'}</p>
+              </div>
+              <div className="team-stat-badge">
+                <span className="badge-count">{members.length}</span>
+                <span className="badge-label">Active Collaborators</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Members Cards List */}
-        <div className="members-grid">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className={`card member-card ${member.isSelf ? 'self-member-card' : ''}`}
-            >
-              <div className="member-card-top">
-                <div className="member-avatar-lg">
-                  {member.name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')}
-                </div>
-                <div className="member-identity">
-                  <div className="member-title-row">
-                    <h3 className="member-full-name">{member.name}</h3>
-                    {member.isLeader && (
-                      <span className="leader-badge">Leader</span>
-                    )}
-                    {member.isSelf && <span className="you-badge">You</span>}
+        {/* Loading Members State */}
+        {isLoadingMembers && (
+          <div style={{ textAlign: 'center', padding: '36px', color: '#6B7280' }}>
+            <p>Loading project team members from database...</p>
+          </div>
+        )}
+
+        {/* Members Grid */}
+        {!isLoadingMembers && selectedProject && (
+          <div className="members-grid">
+            {members.map((member) => (
+              <div key={member.id} className="member-card card">
+                <div className="member-card-head">
+                  <div className="member-avatar-box">
+                    <span>{member.name ? member.name.charAt(0).toUpperCase() : 'U'}</span>
                   </div>
-                  <span className="member-role-title">{member.role}</span>
-                  <span className="member-roll">{member.rollNo}</span>
-                </div>
-              </div>
-
-              <div className="member-card-body">
-                <div className="member-detail-line">
-                  <span className="detail-key">Email:</span>
-                  <span className="detail-val">{member.email}</span>
-                </div>
-                <div className="member-detail-line">
-                  <span className="detail-key">Status:</span>
-                  <span
-                    className={`status-pill ${
-                      member.status === 'Active' ? 'status-completed' : 'status-pending'
-                    }`}
-                  >
-                    {member.status}
-                  </span>
-                </div>
-
-                <div className="member-skills-section">
-                  <span className="skills-label">Assigned Modules / Skills:</span>
-                  <div className="skills-chips">
-                    {member.skills.map((skill, idx) => (
-                      <span key={idx} className="skill-chip">
-                        {skill}
-                      </span>
-                    ))}
+                  <div className="member-id-info">
+                    <div className="member-name-row">
+                      <h4 className="member-full-name">{member.name}</h4>
+                      {member.isLeader && <span className="leader-badge">Project Lead</span>}
+                      {member.isSelf && <span className="you-badge">You</span>}
+                    </div>
+                    <span className="member-role-title">{member.role}</span>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Button: Remove member (only non-self members) */}
-              <div className="member-card-foot">
-                {!member.isSelf ? (
-                  <button
-                    type="button"
-                    className="btn-remove-member"
-                    onClick={() => handleRemoveMember(member.id, member.name)}
-                  >
-                    Remove Member
-                  </button>
-                ) : (
-                  <span className="self-locked-note">Primary Account Lead</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+                <div className="member-card-body">
+                  <div className="member-detail-line">
+                    <span className="detail-key">Email:</span>
+                    <span className="detail-val">{member.email}</span>
+                  </div>
+                  <div className="member-detail-line">
+                    <span className="detail-key">Status:</span>
+                    <span className="status-pill status-completed">{member.status || 'Active'}</span>
+                  </div>
+                </div>
 
-        {/* Modal: Invite Member */}
+                <div className="member-card-foot">
+                  {!member.isLeader ? (
+                    <button
+                      type="button"
+                      className="btn-remove-member"
+                      onClick={() => handleRemoveMember(member.id, member.name)}
+                    >
+                      Remove Member
+                    </button>
+                  ) : (
+                    <span className="self-locked-note">Primary Account Lead &amp; Project Owner</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Modal: Add Team Member */}
         {showInviteModal && (
           <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
             <div className="modal-dialog modal-form" onClick={(e) => e.stopPropagation()}>
               <div className="modal-head">
-                <h3>Invite Student to {teamInfo.name}</h3>
+                <h3>Add Team Member to {selectedProject?.projectName}</h3>
                 <button
                   type="button"
                   className="btn-close"
@@ -259,6 +301,17 @@ function MyTeam() {
                   ✕
                 </button>
               </div>
+
+              {modalError && (
+                <div style={{ margin: '14px 24px 0', padding: '10px 14px', background: '#FEE2E2', color: '#991B1B', borderRadius: '6px', fontSize: '13px' }}>
+                  ⚠️ {modalError}
+                </div>
+              )}
+
+              <div style={{ margin: '14px 24px 0', padding: '12px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', fontSize: '13px', color: '#1E40AF', lineHeight: '1.4' }}>
+                ℹ️ <strong>Account Required:</strong> Collaborators must already have a registered AcadPredict account with their institutional email. Adding a member immediately attaches them to this project.
+              </div>
+
               <form onSubmit={handleInviteSubmit} className="modal-form-body">
                 <div className="form-group-item">
                   <label>Student Full Name *</label>
@@ -267,9 +320,8 @@ function MyTeam() {
                     required
                     placeholder="e.g. Rahul Sharma"
                     value={inviteForm.name}
-                    onChange={(e) =>
-                      setInviteForm({ ...inviteForm, name: e.target.value })
-                    }
+                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="form-group-item">
@@ -279,20 +331,18 @@ function MyTeam() {
                     required
                     placeholder="student@college.edu"
                     value={inviteForm.email}
-                    onChange={(e) =>
-                      setInviteForm({ ...inviteForm, email: e.target.value })
-                    }
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="form-group-item">
                   <label>Project Role</label>
                   <input
                     type="text"
-                    placeholder="e.g. Frontend Developer, QA Engineer"
+                    placeholder="e.g. Frontend Developer, QA Engineer, ML Specialist"
                     value={inviteForm.role}
-                    onChange={(e) =>
-                      setInviteForm({ ...inviteForm, role: e.target.value })
-                    }
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="modal-foot-actions">
@@ -300,57 +350,16 @@ function MyTeam() {
                     type="button"
                     className="btn-secondary-btn"
                     onClick={() => setShowInviteModal(false)}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn-primary-submit">
-                    Send Invitation
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Join Team */}
-        {showJoinModal && (
-          <div className="modal-overlay" onClick={() => setShowJoinModal(false)}>
-            <div className="modal-dialog modal-form" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-head">
-                <h3>Join Existing Academic Team</h3>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowJoinModal(false)}
-                >
-                  ✕
-                </button>
-              </div>
-              <form onSubmit={handleJoinSubmit} className="modal-form-body">
-                <div className="form-group-item">
-                  <label>Team Access Code *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. NE-2026-X8 or provided team key"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value)}
-                  />
-                </div>
-                <p className="modal-info-note">
-                  Entering a team code will transmit a membership request to the respective
-                  team leader and department coordinator.
-                </p>
-                <div className="modal-foot-actions">
                   <button
-                    type="button"
-                    className="btn-secondary-btn"
-                    onClick={() => setShowJoinModal(false)}
+                    type="submit"
+                    className="btn-primary-submit"
+                    disabled={isSubmitting}
                   >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn-primary-submit">
-                    Submit Request
+                    {isSubmitting ? 'Adding to Project...' : 'Add Team Member'}
                   </button>
                 </div>
               </form>

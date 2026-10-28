@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { clearAuth } from '../../services/api';
 import './StudentLayout.css';
 
 /**
@@ -12,13 +13,39 @@ function StudentLayout({ children, pageTitle = 'Dashboard' }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
 
-  // Student User Profile
-  const student = {
-    name: 'V. Mani Mahalakshmi',
-    email: 'v.manimahalakshmi@college.edu',
-    department: 'Computer Science & Engineering',
-    semester: 'Semester VII - Capstone',
+
+  // Load the profile saved during login or registration.
+const savedUser = (() => {
+  try {
+    return JSON.parse(
+      localStorage.getItem('user') ||
+      sessionStorage.getItem('user') ||
+      '{}'
+    );
+  } catch {
+    return {};
+  }
+})();
+
+  const getInitials = (name) => {
+    if (!name || typeof name !== 'string') return 'U';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
   };
+
+  const formatRole = (role) => {
+    if (!role) return 'Student';
+    const clean = role.replace(/^ROLE_/, '').toLowerCase();
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  };
+
+  const userName = savedUser.name || 'Student User';
+  const userEmail = savedUser.email || '';
+  const userRole = formatRole(savedUser.role);
+  const userInitials = getInitials(savedUser.name);
 
   // Sidebar Menu Items
   const navItems = [
@@ -41,6 +68,7 @@ function StudentLayout({ children, pageTitle = 'Dashboard' }) {
   ];
 
   const handleLogout = () => {
+    clearAuth();
     navigate('/login');
   };
 
@@ -310,12 +338,12 @@ function StudentLayout({ children, pageTitle = 'Dashboard' }) {
 
             {/* Profile & Sign Out Area */}
             <div className="layout-profile-area">
-              <div className="layout-avatar">
-                <span>SU</span>
+              <div className="layout-avatar" title={`${userName} (${userRole})`}>
+                <span>{userInitials}</span>
               </div>
               <div className="layout-user-details">
-                <span className="layout-user-name">{student.name}</span>
-                <span className="layout-user-email">{student.email}</span>
+                <span className="layout-user-name">{userName}</span>
+                <span className="layout-user-email">{userEmail ? `${userEmail} (${userRole})` : userRole}</span>
               </div>
               <button
                 type="button"

@@ -27,7 +27,7 @@ function Notifications() {
     {
       id: 'notif-3',
       title: 'ML Risk Score Updated',
-      message: 'AcadPredict model recalculated your project delay index to Medium (Score: 52/100). Check the risk analytics dashboard for mitigation tasks.',
+      message: `AcadPredict model recalculated your project delay index to Medium (Score: ${localStorage.getItem('acadpredictRiskScore') || 82}/100). Check the risk analytics dashboard for mitigation tasks.`,
       category: 'System',
       dateTime: 'Oct 16, 2026 • 11:00 AM',
       isRead: false,

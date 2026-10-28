@@ -341,10 +341,11 @@
 
 /* Modal Form */
 .modal-form-body {
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  background-color: #ffffff;
 }
 
 .form-group-item {
@@ -354,52 +355,67 @@
 }
 
 .form-group-item label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: #334155;
 }
 
 .form-group-item input,
+.form-group-item select,
 .form-group-item textarea {
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 9px 12px;
-  font-size: 13.5px;
-  color: #0f172a;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
   outline: none;
   font-family: inherit;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.form-group-item input::placeholder,
+.form-group-item textarea::placeholder {
+  color: #94a3b8 !important;
 }
 
 .form-group-item input:focus,
+.form-group-item select:focus,
 .form-group-item textarea:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+  background-color: #ffffff !important;
 }
 
 .form-row-two {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 .modal-foot-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .btn-primary-submit {
   background-color: #2563eb;
   color: #ffffff;
   border: none;
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 13.5px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
 }
 
 .btn-primary-submit:hover {
   background-color: #1d4ed8;
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.25);
 }
+
